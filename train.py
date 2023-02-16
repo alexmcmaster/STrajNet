@@ -199,6 +199,7 @@ from lr_schedule import CustomSchedule,CosineDecayRestarts
 schedule = CosineDecayRestarts(initial_learning_rate=LR,
     first_decay_steps=int(30438*1.5),t_mul=1.25,m_mul=0.99,alpha=0)
 
+# TODO: add to cmd line args
 ogm_weight = 1000.0
 occ_weight = 1000.0
 flow_origin_weight = 1000.0
@@ -207,6 +208,8 @@ no_use_warp=False
 use_pred = False
 use_focal_loss = False
 use_gt = True
+# FIXME: should find/fix root cause of instability instead
+clipnorm=1e3
 
 with strategy.scope():
     model = STrajNet(cfg,actor_only=True,sep_actors=False)
@@ -220,7 +223,7 @@ with strategy.scope():
                            use_pred=use_pred,
                            use_focal_loss=use_focal_loss,
                            use_gt=use_gt)
-    optimizer = tf.keras.optimizers.Nadam(learning_rate=LR) 
+    optimizer = tf.keras.optimizers.Nadam(learning_rate=LR, clipnorm=clipnorm)
 
 @tf.function
 def train_step(data):
