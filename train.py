@@ -436,7 +436,8 @@ if __name__ == "__main__":
     print(f'{len(filenames)} found, start loading dataset')
     train_dataset = tf.data.TFRecordDataset(filenames, compression_type='')
     train_dataset = train_dataset.shuffle(64,reshuffle_each_iteration=True)
-    train_dataset = train_dataset.map(_parse_image_function_test)
+    #train_dataset = train_dataset.map(_parse_image_function_test)
+    train_dataset = train_dataset.map(_parse_image_function)
     train_dataset = train_dataset.batch(BATCH_SIZE)
 
     v_filenames = tf.io.matching_files(f'{args.file_dir}/val/*.tfrecords')
