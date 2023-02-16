@@ -250,7 +250,8 @@ def train_step(data):
         logits = _get_pred_waypoint_logits(outputs)
         loss_dict = loss_fn(true_waypoints=true_waypoints,
                             pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
-        loss_value = tf.math.add_n(loss_dict.values())
+        #loss_value = tf.math.add_n(loss_dict.values())
+        loss_value = loss_dict['observed_xe']
 
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
@@ -347,8 +348,11 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
         
         print("\nepoch {}/{}".format(epoch+1, epochs))
         
+        #progBar = tf.keras.utils.Progbar(training_samples,
+        #        stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss'],
+        #        unit_name='sample')
         progBar = tf.keras.utils.Progbar(training_samples,
-                stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss'],
+                stateful_metrics=['obs_loss'],
                 unit_name='sample')
         vprogBar = tf.keras.utils.Progbar(val_samples,
                 stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
@@ -361,9 +365,9 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
             outputs = strategy.run(train_step,args=(batch,))
             progBar.update((step+1) * BATCH_SIZE, values=[
                 ('obs_loss', train_loss.result()/ogm_weight),
-                ('occ_loss', train_loss_occ.result()/occ_weight),
-                ('flow_loss', train_loss_flow.result()/flow_weight),
-                ('warp_loss', train_loss_warp.result()/flow_origin_weight)
+                #('occ_loss', train_loss_occ.result()/occ_weight),
+                #('flow_loss', train_loss_flow.result()/flow_weight),
+                #('warp_loss', train_loss_warp.result()/flow_origin_weight)
             ])
 
         # Iterate over the batches of the validation dataset. 
