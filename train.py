@@ -203,14 +203,23 @@ ogm_weight = 1000.0
 occ_weight = 1000.0
 flow_origin_weight = 1000.0
 flow_weight = 1.0
+no_use_warp=False
+use_pred = False
+use_focal_loss = False
+use_gt = True
 
 with strategy.scope():
     model = STrajNet(cfg,actor_only=True,sep_actors=False)
-    loss_fn = OGMFlow_loss(config,replica=REPLICA,no_use_warp=False,
-                           use_pred=False,use_gt=True,ogm_weight=ogm_weight,
+    loss_fn = OGMFlow_loss(config,
+                           ogm_weight=ogm_weight,
                            occ_weight=occ_weight,
+                           flow_weight=flow_weight,
+                           replica=REPLICA,
                            flow_origin_weight=flow_origin_weight,
-                           flow_weight=flow_weight,use_focal_loss=False)
+                           no_use_warp=no_use_warp,
+                           use_pred=use_pred,
+                           use_focal_loss=use_focal_loss,
+                           use_gt=use_gt)
     optimizer = tf.keras.optimizers.Nadam(learning_rate=LR) 
 
 @tf.function
