@@ -1,0 +1,4 @@
+save/
+.*.swp
+.*.swo
+__pycache__/
