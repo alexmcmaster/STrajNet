@@ -437,6 +437,13 @@ class Processor(object):
                 feature['gt_flow'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[gt_flow.tobytes()]))
                 feature['origin_flow'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[gt_origin_flow.tobytes()]))
 
+            del feature['occl_actors']
+            del feature['gt_occ_ogm']
+            del feature['gt_flow']
+            del feature['origin_flow']
+            del feature['vec_flow']
+            del feature['byc_flow']
+
             example = tf.train.Example(features=tf.train.Features(feature=feature))
             writer.write(example.SerializeToString())
             self.pbar.update(1)
@@ -490,16 +497,16 @@ if __name__=="__main__":
     print(f'Processing training data...{len(train_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_training_data, train_files[:10])
+        p.map(process_training_data, train_files[0:50])
     
     val_files = sorted(glob(f'{args.file_dir}/validation/*'))
     print(f'Processing validation data...{len(val_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_val_data, val_files[:1])
+        p.map(process_val_data, val_files[:])
     
     test_files = sorted(glob(f'{args.file_dir}/testing/*'))
     print(f'Processing validation data...{len(test_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_test_data, test_files[:1])
+        p.map(process_test_data, test_files[:])

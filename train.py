@@ -74,14 +74,14 @@ strategy = tf.distribute.MirroredStrategy()
 feature = {
     'centerlines': tf.io.FixedLenFeature([], tf.string),
     'actors': tf.io.FixedLenFeature([], tf.string),
-    'occl_actors': tf.io.FixedLenFeature([], tf.string),
+    #'occl_actors': tf.io.FixedLenFeature([], tf.string),
     'ogm': tf.io.FixedLenFeature([], tf.string),
     'map_image': tf.io.FixedLenFeature([], tf.string),
     'gt_obs_ogm': tf.io.FixedLenFeature([], tf.string),
-    'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
-    'gt_flow': tf.io.FixedLenFeature([], tf.string),
-    'origin_flow': tf.io.FixedLenFeature([], tf.string),
-    'vec_flow':tf.io.FixedLenFeature([], tf.string),
+    #'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
+    #'gt_flow': tf.io.FixedLenFeature([], tf.string),
+    #'origin_flow': tf.io.FixedLenFeature([], tf.string),
+    #'vec_flow':tf.io.FixedLenFeature([], tf.string),
     # 'byc_flow':tf.io.FixedLenFeature([], tf.string)
 }
 
@@ -93,26 +93,26 @@ def _parse_image_function(example_proto):
       d['centerlines'],tf.float64),[256,10,7]),tf.float32)
   new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
       d['actors'],tf.float64),[48,11,8]),tf.float32)
-  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
-      d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
+#  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
+#      d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
 
-  new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(
-      d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
-  new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(
-      d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+#  new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(
+#      d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
+#  new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(
+#      d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
   new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
       d['ogm'],tf.bool),tf.float32),[512,512,11,2])
 
   new_dict['gt_obs_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
       d['gt_obs_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
-  new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
-      d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+#  new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+#      d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
   new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(
       d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
-  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(
-      d['vec_flow'],tf.float32),[512,512,2])
+#  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(
+#      d['vec_flow'],tf.float32),[512,512,2])
   return new_dict
 
 def _get_pred_waypoint_logits(
@@ -231,15 +231,21 @@ def train_step(data):
     map_img = data['map_image']
     centerlines = data['centerlines']
     actors = data['actors']
-    occl_actors = data['occl_actors']
+    #occl_actors = data['occl_actors']
 
     ogm = data['ogm']
     gt_obs_ogm = data['gt_obs_ogm']
-    gt_occ_ogm = data['gt_occ_ogm']
-    gt_flow = data['gt_flow']
-    origin_flow = data['origin_flow']
+    #gt_occ_ogm = data['gt_occ_ogm']
+    #gt_flow = data['gt_flow']
+    #origin_flow = data['origin_flow']
 
-    flow = data['vec_flow']
+    #flow = data['vec_flow']
+
+    occl_actors = tf.zeros((4, 16, 11, 8))
+    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
+    gt_flow = tf.zeros((4, 8, 256, 256, 2))
+    origin_flow = tf.zeros((4, 8, 256, 256, 1))
+    flow = tf.zeros((4, 512, 512, 2))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -265,9 +271,13 @@ def train_step(data):
 def train_metric_function(data,outputs):
 
     gt_obs_ogm = data['gt_obs_ogm']
-    gt_occ_ogm = data['gt_occ_ogm']
-    gt_flow = data['gt_flow']
-    origin_flow = data['origin_flow']
+    #gt_occ_ogm = data['gt_occ_ogm']
+    #gt_flow = data['gt_flow']
+    #origin_flow = data['origin_flow']
+
+    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
+    gt_flow = tf.zeros((4, 8, 256, 256, 2))
+    origin_flow = tf.zeros((4, 8, 256, 256, 1))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -288,15 +298,21 @@ def val_step(data):
     map_img = data['map_image']
     centerlines = data['centerlines']
     actors = data['actors']
-    occl_actors = data['occl_actors']
+    #occl_actors = data['occl_actors']
 
     ogm = data['ogm']
     gt_obs_ogm = data['gt_obs_ogm']
-    gt_occ_ogm = data['gt_occ_ogm']
-    gt_flow = data['gt_flow']
-    origin_flow = data['origin_flow']
+    #gt_occ_ogm = data['gt_occ_ogm']
+    #gt_flow = data['gt_flow']
+    #origin_flow = data['origin_flow']
 
-    flow = data['vec_flow']
+    #flow = data['vec_flow']
+
+    occl_actors = tf.zeros((4, 16, 11, 8))
+    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
+    gt_flow = tf.zeros((4, 8, 256, 256, 2))
+    origin_flow = tf.zeros((4, 8, 256, 256, 1))
+    flow = tf.zeros((4, 512, 512, 2))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,
                                  gt_occ=gt_occ_ogm,
