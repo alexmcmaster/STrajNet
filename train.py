@@ -48,7 +48,8 @@ print(config)
 
 parser = argparse.ArgumentParser(description='Training')
 parser.add_argument('--save_dir', type=str, help='saving directory',default="")
-parser.add_argument('--file_dir', type=str, help='Training Val Dataset directory',default="./Waymo_Dataset/preprocessed_data")
+parser.add_argument('--file_dir', type=str, help='Training Val Dataset directory',
+                    default="./Waymo_Dataset/preprocessed_data")
 parser.add_argument('--model_path', type=str, help='loaded weight path',default=None)
 parser.add_argument('--batch_size', type=int, help='batch_size',default=16)
 parser.add_argument('--epochs', type=int, help='training eps',default=15)
@@ -88,20 +89,30 @@ def _parse_image_function(example_proto):
   # Parse the input tf.Example proto using the dictionary above.
   new_dict = {}
   d =  tf.io.parse_single_example(example_proto, feature)
-  new_dict['centerlines'] = tf.cast(tf.reshape(tf.io.decode_raw(d['centerlines'],tf.float64),[256,10,7]),tf.float32)
-  new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(d['actors'],tf.float64),[48,11,8]),tf.float32)
-  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
+  new_dict['centerlines'] = tf.cast(tf.reshape(tf.io.decode_raw(
+      d['centerlines'],tf.float64),[256,10,7]),tf.float32)
+  new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
+      d['actors'],tf.float64),[48,11,8]),tf.float32)
+  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
+      d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
 
-  new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
-  new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+  new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(
+      d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
+  new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(
+      d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
-  new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(d['ogm'],tf.bool),tf.float32),[512,512,11,2])
+  new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+      d['ogm'],tf.bool),tf.float32),[512,512,11,2])
 
-  new_dict['gt_obs_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(d['gt_obs_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
-  new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+  new_dict['gt_obs_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+      d['gt_obs_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+  new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+      d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
-  new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
-  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(d['vec_flow'],tf.float32),[512,512,2])
+  new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(
+      d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
+  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(
+      d['vec_flow'],tf.float32),[512,512,2])
   return new_dict
 
 def _get_pred_waypoint_logits(
@@ -182,7 +193,8 @@ with strategy.scope():
 print('load_model...')
 
 from modules import STrajNet
-cfg=dict(input_size=(512,512), window_size=8, embed_dim=96, depths=[2,2,2], num_heads=[3,6,12])
+cfg=dict(input_size=(512,512), window_size=8, embed_dim=96,
+         depths=[2,2,2], num_heads=[3,6,12])
 from lr_schedule import CustomSchedule,CosineDecayRestarts
 schedule = CosineDecayRestarts(initial_learning_rate=LR,
     first_decay_steps=int(30438*1.5),t_mul=1.25,m_mul=0.99,alpha=0)
@@ -194,8 +206,11 @@ flow_weight = 1.0
 
 with strategy.scope():
     model = STrajNet(cfg,actor_only=True,sep_actors=False)
-    loss_fn = OGMFlow_loss(config,replica=REPLICA,no_use_warp=False,use_pred=False,use_gt=True,
-    ogm_weight=ogm_weight, occ_weight=occ_weight,flow_origin_weight=flow_origin_weight,flow_weight=flow_weight,use_focal_loss=False)
+    loss_fn = OGMFlow_loss(config,replica=REPLICA,no_use_warp=False,
+                           use_pred=False,use_gt=True,ogm_weight=ogm_weight,
+                           occ_weight=occ_weight,
+                           flow_origin_weight=flow_origin_weight,
+                           flow_weight=flow_weight,use_focal_loss=False)
     optimizer = tf.keras.optimizers.Nadam(learning_rate=LR) 
 
 @tf.function
@@ -214,12 +229,15 @@ def train_step(data):
 
     flow = data['vec_flow']
 
-    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,gt_flow=gt_flow,origin_flow=origin_flow)
+    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
+                                 gt_flow=gt_flow,origin_flow=origin_flow)
 
     with tf.GradientTape() as tape:
-        outputs = model(ogm,map_img,training=True,obs=actors,occ=occl_actors,mapt=centerlines,flow=flow)
+        outputs = model(ogm,map_img,training=True,obs=actors,occ=occl_actors,
+                        mapt=centerlines,flow=flow)
         logits = _get_pred_waypoint_logits(outputs)
-        loss_dict = loss_fn(true_waypoints=true_waypoints,pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
+        loss_dict = loss_fn(true_waypoints=true_waypoints,
+                            pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
         loss_value = tf.math.add_n(loss_dict.values())
 
     grads = tape.gradient(loss_value, model.trainable_weights)
@@ -238,7 +256,8 @@ def train_metric_function(data,outputs):
     gt_flow = data['gt_flow']
     origin_flow = data['origin_flow']
 
-    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,gt_flow=gt_flow,origin_flow=origin_flow)
+    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
+                                 gt_flow=gt_flow,origin_flow=origin_flow)
     logits = _get_pred_waypoint_logits(outputs)
     pred_waypoints = _apply_sigmoid_to_occupancy_logits(logits)
 
@@ -266,12 +285,17 @@ def val_step(data):
 
     flow = data['vec_flow']
 
-    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,gt_flow=gt_flow,origin_flow=origin_flow)
+    true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,
+                                 gt_occ=gt_occ_ogm,
+                                 gt_flow=gt_flow,
+                                 origin_flow=origin_flow)
 
-    outputs = model(ogm,map_img,training=False,obs=actors,occ=occl_actors,mapt=centerlines,flow=flow)
+    outputs = model(ogm,map_img,training=False,obs=actors,occ=occl_actors,
+                    mapt=centerlines,flow=flow)
     logits = _get_pred_waypoint_logits(outputs)
     
-    loss_dict = loss_fn(true_waypoints=true_waypoints,pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
+    loss_dict = loss_fn(true_waypoints=true_waypoints,
+                        pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
     loss_value = tf.math.add_n(loss_dict.values())
 
     valid_loss.update_state(loss_dict['observed_xe']*REPLICA)
@@ -311,16 +335,24 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
         
         print("\nepoch {}/{}".format(epoch+1, epochs))
         
-        progBar = tf.keras.utils.Progbar(training_samples, stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss'], unit_name='sample')
-        vprogBar = tf.keras.utils.Progbar(val_samples, stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
-        'epe','obs_auc','occ_auc','flowogm_auc'], unit_name='sample')
+        progBar = tf.keras.utils.Progbar(training_samples,
+                stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss'],
+                unit_name='sample')
+        vprogBar = tf.keras.utils.Progbar(val_samples,
+                stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
+                                  'epe','obs_auc','occ_auc','flowogm_auc'],
+                unit_name='sample')
 
         # Iterate over the batches of the training dataset.
         for step, batch in enumerate(train_dataset):
             training_samples = (step+1) * BATCH_SIZE
             outputs = strategy.run(train_step,args=(batch,))
-            progBar.update((step+1) * BATCH_SIZE, values=[('obs_loss', train_loss.result()/ogm_weight),('occ_loss', train_loss_occ.result()/occ_weight),
-            ('flow_loss', train_loss_flow.result()/flow_weight),('warp_loss', train_loss_warp.result()/flow_origin_weight)])
+            progBar.update((step+1) * BATCH_SIZE, values=[
+                ('obs_loss', train_loss.result()/ogm_weight),
+                ('occ_loss', train_loss_occ.result()/occ_weight),
+                ('flow_loss', train_loss_flow.result()/flow_weight),
+                ('warp_loss', train_loss_warp.result()/flow_origin_weight)
+            ])
 
         # Iterate over the batches of the validation dataset. 
         if valid_dataset is not None:
@@ -328,8 +360,11 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
                 val_samples = (step+1) * BATCH_SIZE
                 strategy.run(val_step,args=(batch,))
                 vprogBar.update((step+1) * BATCH_SIZE, values=[
-                    ('obs_loss', valid_loss.result()/ogm_weight),('occ_loss',valid_loss_occ.result()/occ_weight),
-                ('flow_loss', valid_loss_flow.result()/flow_weight),('warp_loss', valid_loss_warp.result()/flow_origin_weight),('flowogm_auc',valid_metrics.flow_ogm_auc.result())
+                    ('obs_loss', valid_loss.result()/ogm_weight),
+                    ('occ_loss',valid_loss_occ.result()/occ_weight),
+                    ('flow_loss', valid_loss_flow.result()/flow_weight),
+                    ('warp_loss', valid_loss_warp.result()/flow_origin_weight),
+                    ('flowogm_auc',valid_metrics.flow_ogm_auc.result())
                 ])
 
             # Display metrics at the end of testing.
@@ -340,7 +375,10 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
             training_losses.append(train_loss.result().numpy())
             validation_losses.append(valid_loss.result().numpy())
 
-        log = {'epoch': epoch+1, 'loss': train_loss.result().numpy(), 'val_loss': valid_loss.result().numpy(), 'lr': optimizer.lr.numpy()}
+        log = {'epoch': epoch+1,
+               'loss': train_loss.result().numpy(),
+               'val_loss': valid_loss.result().numpy(),
+               'lr': optimizer.lr.numpy()}
 
         # log.update(train_res_dict)
 
@@ -357,7 +395,8 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
                 writer = csv.writer(csv_file)
                 writer.writerow(log.values())
         
-        model.save_weights('{}/model_{}_{:.4f}_{:.4f}.tf'.format(SAVE_DIR,epoch+1, train_loss.result(), valid_loss.result()))
+        model.save_weights('{}/model_{}_{:.4f}_{:.4f}.tf'\
+                .format(SAVE_DIR,epoch+1, train_loss.result(), valid_loss.result()))
         
         # Clear metrics
         train_loss.reset_states()
