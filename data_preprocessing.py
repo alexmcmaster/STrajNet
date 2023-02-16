@@ -486,20 +486,20 @@ if __name__=="__main__":
 
     NUM_POOLS = args.pool
 
-    # train_files = glob(f'{args.file_dir}/training/*')
-    # print(f'Processing training data...{len(train_files)} found!')
-    # print('Starting processing pooling...')
-    # with Pool(NUM_POOLS) as p:
-    #     p.map(process_training_data, train_files[:1])
+    train_files = sorted(glob(f'{args.file_dir}/training/*'))
+    print(f'Processing training data...{len(train_files)} found!')
+    print('Starting processing pooling...')
+    with Pool(NUM_POOLS) as p:
+        p.map(process_training_data, train_files[:10])
     
-    val_files = glob(f'{args.file_dir}/validation/*')
+    val_files = sorted(glob(f'{args.file_dir}/validation/*'))
     print(f'Processing validation data...{len(val_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
         p.map(process_val_data, val_files[:1])
     
-    # test_files = glob(f'{args.file_dir}/testing/*')
-    # print(f'Processing validation data...{len(test_files)} found!')
-    # print('Starting processing pooling...')
-    # with Pool(NUM_POOLS) as p:
-    #     p.map(process_test_data, test_files[:1])
+    test_files = sorted(glob(f'{args.file_dir}/testing/*'))
+    print(f'Processing validation data...{len(test_files)} found!')
+    print('Starting processing pooling...')
+    with Pool(NUM_POOLS) as p:
+        p.map(process_test_data, test_files[:1])
