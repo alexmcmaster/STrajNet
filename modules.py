@@ -779,10 +779,7 @@ class STrajNet(tf.keras.Model):
         fg_msa=False,use_last_ref=False,fg=False,large_ogm=True):
         super().__init__(name=model_name)
 
-        self.encoder = SwinTransformerEncoder(include_top=True,img_size=cfg['input_size'], window_size=cfg[
-            'window_size'], embed_dim=cfg['embed_dim'], depths=cfg['depths'], num_heads=cfg['num_heads'],
-            sep_encode=True,flow_sep=True,use_flow=True,drop_rate=0.0, attn_drop_rate=0.0,drop_path_rate=0.1,
-            large_input=large_ogm)
+        self.encoder = SwinTransformerEncoder(include_top=True,img_size=cfg['input_size'], window_size=cfg['window_size'], embed_dim=cfg['embed_dim'], depths=cfg['depths'], num_heads=cfg['num_heads'], sep_encode=True,flow_sep=True,use_flow=True,drop_rate=0.0, attn_drop_rate=0.0,drop_path_rate=0.1, large_input=large_ogm)
         
         if sep_actors:
             traj_cfg = dict(traj_heads=4,att_heads=6,out_dim=384,no_attn=True)
