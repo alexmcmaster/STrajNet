@@ -241,11 +241,13 @@ def train_step(data):
 
     #flow = data['vec_flow']
 
-    occl_actors = tf.zeros((4, 16, 11, 8))
-    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
-    gt_flow = tf.zeros((4, 8, 256, 256, 2))
-    origin_flow = tf.zeros((4, 8, 256, 256, 1))
-    flow = tf.zeros((4, 512, 512, 2))
+    batch_size = ogm.shape[0]
+
+    occl_actors = tf.zeros((batch_size, 16, 11, 8))
+    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+    flow = tf.zeros((batch_size, 512, 512, 2))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -275,9 +277,11 @@ def train_metric_function(data,outputs):
     #gt_flow = data['gt_flow']
     #origin_flow = data['origin_flow']
 
-    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
-    gt_flow = tf.zeros((4, 8, 256, 256, 2))
-    origin_flow = tf.zeros((4, 8, 256, 256, 1))
+    batch_size = gt_obs_ogm.shape[0]
+
+    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -308,11 +312,13 @@ def val_step(data):
 
     #flow = data['vec_flow']
 
-    occl_actors = tf.zeros((4, 16, 11, 8))
-    gt_occ_ogm = tf.zeros((4, 8, 256, 256, 1))
-    gt_flow = tf.zeros((4, 8, 256, 256, 2))
-    origin_flow = tf.zeros((4, 8, 256, 256, 1))
-    flow = tf.zeros((4, 512, 512, 2))
+    batch_size = ogm.shape[0]
+
+    occl_actors = tf.zeros((batch_size, 16, 11, 8))
+    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+    flow = tf.zeros((batch_size, 512, 512, 2))
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,
                                  gt_occ=gt_occ_ogm,
