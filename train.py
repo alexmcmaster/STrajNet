@@ -376,9 +376,12 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
         progBar = tf.keras.utils.Progbar(training_samples,
                 stateful_metrics=['obs_loss'],
                 unit_name='sample')
+        #vprogBar = tf.keras.utils.Progbar(val_samples,
+        #        stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
+        #                          'epe','obs_auc','occ_auc','flowogm_auc'],
+        #        unit_name='sample')
         vprogBar = tf.keras.utils.Progbar(val_samples,
-                stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
-                                  'epe','obs_auc','occ_auc','flowogm_auc'],
+                stateful_metrics=['obs_loss','epe','obs_auc'],
                 unit_name='sample')
 
         # Iterate over the batches of the training dataset.
@@ -399,10 +402,10 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
                 strategy.run(val_step,args=(batch,))
                 vprogBar.update((step+1) * BATCH_SIZE, values=[
                     ('obs_loss', valid_loss.result()/ogm_weight),
-                    ('occ_loss',valid_loss_occ.result()/occ_weight),
-                    ('flow_loss', valid_loss_flow.result()/flow_weight),
-                    ('warp_loss', valid_loss_warp.result()/flow_origin_weight),
-                    ('flowogm_auc',valid_metrics.flow_ogm_auc.result())
+                    #('occ_loss',valid_loss_occ.result()/occ_weight),
+                    #('flow_loss', valid_loss_flow.result()/flow_weight),
+                    #('warp_loss', valid_loss_warp.result()/flow_origin_weight),
+                    #('flowogm_auc',valid_metrics.flow_ogm_auc.result())
                 ])
 
             # Display metrics at the end of testing.
