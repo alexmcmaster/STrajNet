@@ -6,12 +6,18 @@ from tensorflow.keras.layers import Dense, Dropout, Conv2D, LayerNormalization, 
 
 
 CFGS = {
-    'swin_tiny_224': dict(input_size=(224, 224), window_size=7, embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24]),
-    'swin_small_224': dict(input_size=(224, 224), window_size=7, embed_dim=96, depths=[2, 2, 18, 2], num_heads=[3, 6, 12, 24]),
-    'swin_base_224': dict(input_size=(224, 224), window_size=7, embed_dim=128, depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32]),
-    'swin_base_384': dict(input_size=(384, 384), window_size=12, embed_dim=128, depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32]),
-    'swin_large_224': dict(input_size=(224, 224), window_size=7, embed_dim=192, depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48]),
-    'swin_large_384': dict(input_size=(384, 384), window_size=12, embed_dim=192, depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48])
+    'swin_tiny_224':  dict(input_size=(224, 224), window_size=7, embed_dim=96,
+                           depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24]),
+    'swin_small_224': dict(input_size=(224, 224), window_size=7, embed_dim=96,
+                           depths=[2, 2, 18, 2], num_heads=[3, 6, 12, 24]),
+    'swin_base_224':  dict(input_size=(224, 224), window_size=7, embed_dim=128,
+                           depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32]),
+    'swin_base_384':  dict(input_size=(384, 384), window_size=12, embed_dim=128,
+                           depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32]),
+    'swin_large_224': dict(input_size=(224, 224), window_size=7, embed_dim=192,
+                           depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48]),
+    'swin_large_384': dict(input_size=(384, 384), window_size=12, embed_dim=192,
+                           depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48])
 }
 
 
@@ -64,7 +70,8 @@ def window_reverse(windows, window_size, H, W, C):
 
 
 class WindowAttention(tf.keras.layers.Layer):
-    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., prefix=''):
+    def __init__(self, dim, window_size, num_heads, qkv_bias=True,
+                 qk_scale=None, attn_drop=0., proj_drop=0., prefix=''):
         super().__init__()
         self.dim = dim
         self.window_size = window_size
@@ -80,10 +87,11 @@ class WindowAttention(tf.keras.layers.Layer):
         self.proj_drop = Dropout(proj_drop)
 
     def build(self, input_shape):
-        self.relative_position_bias_table = self.add_weight(f'{self.prefix}/attn/relative_position_bias_table',
-                                                            shape=(
-                                                                (2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), self.num_heads),
-                                                            initializer=tf.initializers.Zeros(), trainable=True)
+        self.relative_position_bias_table =\
+                self.add_weight(f'{self.prefix}/attn/relative_position_bias_table',
+                                shape=((2 * self.window_size[0] - 1)\
+                                     * (2 * self.window_size[1] - 1), self.num_heads),
+                                initializer=tf.initializers.Zeros(), trainable=True)
 
         coords_h = np.arange(self.window_size[0])
         coords_w = np.arange(self.window_size[1])
@@ -96,30 +104,33 @@ class WindowAttention(tf.keras.layers.Layer):
         relative_coords[:, :, 1] += self.window_size[1] - 1
         relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
         relative_position_index = relative_coords.sum(-1).astype(np.int64)
-        self.relative_position_index = tf.Variable(initial_value=tf.convert_to_tensor(
-            relative_position_index), trainable=False, name=f'{self.prefix}/attn/relative_position_index')
+        self.relative_position_index = tf.Variable(
+                initial_value=tf.convert_to_tensor(relative_position_index),
+                trainable=False,
+                name=f'{self.prefix}/attn/relative_position_index')
         self.built = True
 
     def call(self, x, mask=None,training=False):
         B_, N, C = x.get_shape().as_list()
-        qkv = tf.transpose(tf.reshape(self.qkv(
-            x), shape=[-1, N, 3, self.num_heads, C // self.num_heads]), perm=[2, 0, 3, 1, 4])
+        qkv = tf.transpose(
+                tf.reshape(self.qkv(x), shape=[-1, N, 3, self.num_heads, C // self.num_heads]),
+                perm=[2, 0, 3, 1, 4])
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         q = q * self.scale
         attn = (q @ tf.transpose(k, perm=[0, 1, 3, 2]))
-        relative_position_bias = tf.gather(self.relative_position_bias_table, tf.reshape(
-            self.relative_position_index, shape=[-1]))
+        relative_position_bias = tf.gather(self.relative_position_bias_table,
+                tf.reshape(self.relative_position_index, shape=[-1]))
         relative_position_bias = tf.reshape(relative_position_bias, shape=[
-                                            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1])
-        relative_position_bias = tf.transpose(
-            relative_position_bias, perm=[2, 0, 1])
+                                            self.window_size[0] * self.window_size[1],
+                                            self.window_size[0] * self.window_size[1], -1])
+        relative_position_bias = tf.transpose(relative_position_bias, perm=[2, 0, 1])
         attn = attn + tf.expand_dims(relative_position_bias, axis=0)
 
         if mask is not None:
             nW = mask.get_shape()[0]  # tf.shape(mask)[0]
-            attn = tf.reshape(attn, shape=[-1, nW, self.num_heads, N, N]) + tf.cast(
-                tf.expand_dims(tf.expand_dims(mask, axis=1), axis=0), attn.dtype)
+            attn = tf.reshape(attn, shape=[-1, nW, self.num_heads, N, N])\
+                    + tf.cast(tf.expand_dims(tf.expand_dims(mask, axis=1), axis=0), attn.dtype)
             attn = tf.reshape(attn, shape=[-1, self.num_heads, N, N])
             attn = tf.nn.softmax(attn, axis=-1)
         else:
@@ -161,8 +172,10 @@ class DropPath(tf.keras.layers.Layer):
 
 
 class SwinTransformerBlock(tf.keras.layers.Layer):
-    def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0, mlp_ratio=4.,
-                 qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path_prob=0., norm_layer=LayerNormalization, prefix=''):
+    def __init__(self, dim, input_resolution, num_heads, window_size=7,
+                 shift_size=0, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+                 drop=0., attn_drop=0., drop_path_prob=0.,
+                 norm_layer=LayerNormalization, prefix=''):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -177,10 +190,10 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         self.prefix = prefix
 
         self.norm1 = norm_layer(epsilon=1e-5, name=f'{self.prefix}/norm1')
-        self.attn = WindowAttention(dim, window_size=(self.window_size, self.window_size), num_heads=num_heads,
-                                    qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, prefix=self.prefix)
-        self.drop_path = DropPath(
-            drop_path_prob if drop_path_prob > 0. else 0.)
+        self.attn = WindowAttention(dim, window_size=(self.window_size, self.window_size),
+                num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                attn_drop=attn_drop, proj_drop=drop, prefix=self.prefix)
+        self.drop_path = DropPath(drop_path_prob if drop_path_prob > 0. else 0.)
         self.norm2 = norm_layer(epsilon=1e-5, name=f'{self.prefix}/norm2')
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
@@ -296,9 +309,10 @@ class PatchUpsampling(tf.keras.layers.Layer):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.expandsion = UpSampling2D(size=(2, 2),interpolation='nearest',name=f'{prefix}/upsample/upsampling')
-        self.reduce_emb = Dense(dim // 2, use_bias=False,
-                               name=f'{prefix}/upsample/up_emb')
+        self.expandsion = UpSampling2D(size=(2, 2),
+                                       interpolation='nearest',
+                                       name=f'{prefix}/upsample/upsampling')
+        self.reduce_emb = Dense(dim // 2, use_bias=False, name=f'{prefix}/upsample/up_emb')
 
     def call(self, x):
         H, W = self.input_resolution
@@ -317,8 +331,9 @@ class PatchUpsampling(tf.keras.layers.Layer):
 class BasicLayer(tf.keras.layers.Layer):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path_prob=0., norm_layer=LayerNormalization, downsample=None, use_checkpoint=False, prefix='',
-                 trajnet=False,traj_heads=1,traj_num=64,traj_dim=384,map_trajnet=False,map_num=256,map_dim=384):
+                 drop_path_prob=0., norm_layer=LayerNormalization, downsample=None,
+                 use_checkpoint=False, prefix='', trajnet=False, traj_heads=1,
+                 traj_num=64, traj_dim=384, map_trajnet=False, map_num=256, map_dim=384):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -328,8 +343,7 @@ class BasicLayer(tf.keras.layers.Layer):
         # build blocks
         self.blocks = [SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
                                            num_heads=num_heads, window_size=window_size,
-                                           shift_size=0 if (
-                                               i % 2 == 0) else window_size // 2,
+                                           shift_size=0 if (i % 2 == 0) else window_size // 2,
                                            mlp_ratio=mlp_ratio,
                                            qkv_bias=qkv_bias, qk_scale=qk_scale,
                                            drop=drop, attn_drop=attn_drop,
@@ -346,7 +360,8 @@ class BasicLayer(tf.keras.layers.Layer):
         self.trajnet = trajnet
         self.map_trajnet = map_trajnet
         if self.trajnet:
-            self.traj_attn = TrajPicModule(dim,input_resolution,traj_heads,traj_num,traj_dim,map_num,map_dim,use_map=self.map_trajnet)
+            self.traj_attn = TrajPicModule(dim,input_resolution,traj_heads,traj_num,traj_dim,
+                                           map_num,map_dim,use_map=self.map_trajnet)
 
     def call(self, x,traj=None,mask=None,mapt=None,map_mask=None,training=False):
         for block in self.blocks:
@@ -366,7 +381,8 @@ class BasicLayer(tf.keras.layers.Layer):
 class BasicLayerDecoder(tf.keras.layers.Layer):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path_prob=0., norm_layer=LayerNormalization, upsample=None, use_checkpoint=False,res_connection=False,prefix=''):
+                 drop_path_prob=0., norm_layer=LayerNormalization, upsample=None,
+                 use_checkpoint=False, res_connection=False, prefix=''):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -415,7 +431,8 @@ class BasicLayerDecoder(tf.keras.layers.Layer):
 
 
 class PatchEmbed(tf.keras.layers.Layer):
-    def __init__(self, img_size=(224, 224), patch_size=(4, 4), in_chans=3, embed_dim=96, norm_layer=None):
+    def __init__(self, img_size=(224, 224), patch_size=(4, 4), in_chans=3,
+                 embed_dim=96, norm_layer=None):
         super().__init__(name='patch_embed')
         patches_resolution = [img_size[0] //
                               patch_size[0], img_size[1] // patch_size[1]]
@@ -452,7 +469,8 @@ class SwinTransformerEncoder(tf.keras.Model):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=LayerNormalization, ape=False, patch_norm=True,
-                 use_checkpoint=False,sep_encode=False,no_map=False,flow_sep=False,use_flow=False,large_input=False, **kwargs):
+                 use_checkpoint=False, sep_encode=False, no_map=False, flow_sep=False,
+                 use_flow=False, large_input=False, **kwargs):
         super().__init__(name=model_name)
         """
         Encoder of SwinTransformer
@@ -500,60 +518,59 @@ class SwinTransformerEncoder(tf.keras.Model):
         # absolute postion embedding
         if self.ape:
             self.absolute_pos_embed = self.add_weight('absolute_pos_embed',
-                                                      shape=(
-                                                          1, num_patches, embed_dim),
+                                                      shape=(1, num_patches, embed_dim),
                                                       initializer=tf.initializers.Zeros())
 
         dpr = [x for x in np.linspace(0., drop_path_rate, sum(depths))]
 
         if sep_encode:
-            
             if self.use_flow:
                 self.patch_embed_flow = PatchEmbed(
-                    img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
-                    norm_layer=norm_layer if self.patch_norm else None)
+                    img_size=img_size, patch_size=patch_size, in_chans=in_chans,
+                    embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
                 
                 if self.flow_sep:
                     self.flow_norm = norm_layer(epsilon=1e-5,name='all_norm')
                     self.flow_layer = BasicLayer(dim=int(embed_dim * (2 ** 0)),
-                                                    input_resolution=(patches_resolution[0] // (2 ** 0),
-                                                                    patches_resolution[1] // (2 ** 0)),
-                                                    depth=depths[0],
-                                                    num_heads=num_heads[0],
-                                                    window_size=window_size,
-                                                    mlp_ratio=self.mlp_ratio,
-                                                    qkv_bias=qkv_bias, qk_scale=qk_scale,
-                                                    drop=drop_rate, attn_drop=attn_drop_rate,
-                                                    drop_path_prob=dpr[sum(depths[:0]):sum(
-                                                        depths[:0 + 1])],
-                                                    norm_layer=norm_layer,
-                                                    downsample=PatchMerging if (
-                                                        0 < self.num_layers - 1) else None,# No downsample of the last layer
-                                                    use_checkpoint=use_checkpoint,
-                                                    prefix=f'flow_layers{0}')      
+                                        input_resolution=(patches_resolution[0] // (2 ** 0),
+                                                          patches_resolution[1] // (2 ** 0)),
+                                        depth=depths[0],
+                                        num_heads=num_heads[0],
+                                        window_size=window_size,
+                                        mlp_ratio=self.mlp_ratio,
+                                        qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                        drop=drop_rate, attn_drop=attn_drop_rate,
+                                        drop_path_prob=dpr[sum(depths[:0]):sum(depths[:0 + 1])],
+                                        norm_layer=norm_layer,
+                                        downsample=PatchMerging if (0 < self.num_layers - 1)\
+                                                else None,# No downsample of the last layer
+                                        use_checkpoint=use_checkpoint,
+                                        prefix=f'flow_layers{0}')      
             if not self.no_map:
                 self.patch_embed_map = PatchEmbed(
-                    img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
-                    norm_layer=norm_layer if self.patch_norm else None)
+                    img_size=img_size, patch_size=patch_size, in_chans=in_chans,
+                    embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
         # build layers
         self.basic_layers = [BasicLayer(dim=int(embed_dim * 2 ** i_layer),
-                                                input_resolution=(patches_resolution[0] // (2 ** i_layer),
-                                                                  patches_resolution[1] // (2 ** i_layer)),
-                                                depth=depths[i_layer],
-                                                num_heads=num_heads[i_layer],
-                                                window_size=window_size,
-                                                mlp_ratio=self.mlp_ratio,
-                                                qkv_bias=qkv_bias, qk_scale=qk_scale,
-                                                drop=drop_rate, attn_drop=attn_drop_rate,
-                                                drop_path_prob=dpr[sum(depths[:i_layer]):sum(
-                                                    depths[:i_layer + 1])],
-                                                norm_layer=norm_layer,
-                                                downsample=PatchMerging if (
-                                                    i_layer < self.num_layers - 1) else None,# No downsample of the last layer
-                                                use_checkpoint=use_checkpoint,
-                                                prefix=f'layers{i_layer}') for i_layer in range(self.num_layers)]
+                                        input_resolution=(patches_resolution[0] // (2 ** i_layer),
+                                                          patches_resolution[1] // (2 ** i_layer)),
+                                        depth=depths[i_layer],
+                                        num_heads=num_heads[i_layer],
+                                        window_size=window_size,
+                                        mlp_ratio=self.mlp_ratio,
+                                        qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                        drop=drop_rate, attn_drop=attn_drop_rate,
+                                        drop_path_prob=\
+                                            dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
+                                        norm_layer=norm_layer,
+                                        downsample=PatchMerging if (i_layer < self.num_layers - 1)\
+                                            else None,# No downsample of the last layer
+                                        use_checkpoint=use_checkpoint,
+                                        prefix=f'layers{i_layer}') for i_layer in\
+                                            range(self.num_layers)]
         
-        self.final_resolution = patches_resolution[0] // (2 ** (self.num_layers - 1)), patches_resolution[1] // (2 ** (self.num_layers - 1))
+        self.final_resolution = patches_resolution[0] // (2 ** (self.num_layers - 1)),\
+                                patches_resolution[1] // (2 ** (self.num_layers - 1))
         self.all_patch_norm = norm_layer(epsilon=1e-5,name='all_norm')
         
         dummy_ogm = tf.zeros([1,img_size[0],img_size[1],11,2])
@@ -587,7 +604,8 @@ class SwinTransformerEncoder(tf.keras.Model):
                     x = x + maps
             else:
                 if self.use_flow:
-                    x = self.patch_embed_vecicle(vec) +  self.patch_embed_map(map_img) + self.patch_embed_flow(flow)
+                    x = self.patch_embed_vecicle(vec) + self.patch_embed_map(map_img)\
+                            + self.patch_embed_flow(flow)
                 else:
                     x = self.patch_embed_vecicle(vec) +  self.patch_embed_map(map_img)
         else:
@@ -612,14 +630,16 @@ class SwinTransformerEncoder(tf.keras.Model):
             if i==0 and self.flow_sep and self.use_flow:
                 x = x + flow_x
                 if self.large_input:
-                    flow_res = tf.reshape(tf.reshape(flow_res,[-1,128,128,self.embed_dim])[:,32:32+64,32:32+64,:],[-1,64*64,96])
+                    flow_res = tf.reshape(tf.reshape(flow_res,
+                        [-1,128,128,self.embed_dim])[:,32:32+64,32:32+64,:],[-1,64*64,96])
                 res_list.append(flow_res)
             if self.large_input:
                 init_res = 128 // (2**i)
                 dim = self.embed_dim * (2**i)
                 crop = init_res // 2
                 c_b,c_e = int(init_res*0.25),int(init_res*0.75)
-                res = tf.reshape(tf.reshape(res,[-1,init_res,init_res,dim])[:,c_b:c_e,c_b:c_e,:],[-1,crop*crop,dim])
+                res = tf.reshape(tf.reshape(res,
+                    [-1,init_res,init_res,dim])[:,c_b:c_e,c_b:c_e,:],[-1,crop*crop,dim])
             res_list.append(res)
         return res_list
 
@@ -628,9 +648,10 @@ class SwinTransformerEncoder(tf.keras.Model):
         return x
 
 class Pyramid3DDecoder(tf.keras.Model):
-    def __init__(self,config,img_size,use_pyramid=False,model_name='PyrDecoder',split_pred=False,
-        timestep_split=False,double_decode=False,stp_grad=False,shallow_decode=0,flow_sep_decode=False,
-        conv_cnn=False,sep_conv=False,rep_res=True,fg_sep=False):
+    def __init__(self, config, img_size, use_pyramid=False, model_name='PyrDecoder',
+                 split_pred=False, timestep_split=False, double_decode=False, stp_grad=False,
+                 shallow_decode=0, flow_sep_decode=False, conv_cnn=False, sep_conv=False,
+                 rep_res=True, fg_sep=False):
         super().__init__(name=model_name)
         decode_inds = [4, 3, 2, 1, 0][shallow_decode:]
         decoder_channels = [48, 96, 128, 192, 384]
@@ -675,12 +696,15 @@ class Pyramid3DDecoder(tf.keras.Model):
 
         if flow_sep_decode:
             self.upsample_f = [
-            tf.keras.layers.UpSampling3D(size=(1,2,2),name=f'upsamplef_{i}') for i in decode_inds[-2:]
+                tf.keras.layers.UpSampling3D(size=(1,2,2),
+                    name=f'upsamplef_{i}') for i in decode_inds[-2:]
             ]
             if sep_conv:
                 self.upconv_f = [
-                tf.keras.layers.ConvLSTM2D(filters=96,activation='elu',name=f'upconvf_{1}_0',return_sequences=True,**conv2d_kwargs),
-                tf.keras.layers.Conv2D(filters=48,activation='elu',name=f'upconvf_{0}_0',**conv2d_kwargs)
+                    tf.keras.layers.ConvLSTM2D(filters=96, activation='elu', name=f'upconvf_{1}_0',
+                                               return_sequences=True, **conv2d_kwargs),
+                    tf.keras.layers.Conv2D(filters=48, activation='elu', name=f'upconvf_{0}_0',
+                                               **conv2d_kwargs)
                 ]
             else:
                 self.upconv_f = [
@@ -707,13 +731,13 @@ class Pyramid3DDecoder(tf.keras.Model):
         self.use_pyramid = use_pyramid
         if use_pyramid:
             self.res_layer = [
-            tf.keras.layers.Conv3D(
-            filters=decoder_channels[i],
-            activation='elu',
-            name=f'resconv_{i}',
-            kernel_size=(8,1,1),
-            strides=1,
-            padding='same') for i in decode_inds[:3-shallow_decode]
+                    tf.keras.layers.Conv3D(
+                        filters=decoder_channels[i],
+                        activation='elu',
+                        name=f'resconv_{i}',
+                        kernel_size=(8,1,1),
+                        strides=1,
+                        padding='same') for i in decode_inds[:3-shallow_decode]
             ]
             self.ind_list=[2,1,0][shallow_decode:]
             self.reshape_dim = [16,32,64][shallow_decode:]
@@ -749,7 +773,8 @@ class Pyramid3DDecoder(tf.keras.Model):
 
             if self.use_pyramid and i<=len(self.ind_list)-1:
                 if self.rep_res:
-                    res_flat  = tf.repeat(res_list[self.ind_list[i]][:,tf.newaxis],repeats=8,axis=1)
+                    res_flat  = tf.repeat(res_list[self.ind_list[i]][:,tf.newaxis],
+                                          repeats=8, axis=1)
                 else:
                     res_flat = res_list[self.ind_list[i]]
 
@@ -775,11 +800,15 @@ from trajNet import TrajNetCrossAttention
 from FG_MSA import FGMSA
 
 class STrajNet(tf.keras.Model):
-    def __init__(self,cfg,model_name='STrajNet',use_pyramid=True,actor_only=True,sep_actors=False,
-        fg_msa=False,use_last_ref=False,fg=False,large_ogm=True):
+    def __init__(self, cfg, model_name='STrajNet', use_pyramid=True, actor_only=True,
+                 sep_actors=False, fg_msa=False, use_last_ref=False, fg=False, large_ogm=True):
         super().__init__(name=model_name)
 
-        self.encoder = SwinTransformerEncoder(include_top=True,img_size=cfg['input_size'], window_size=cfg['window_size'], embed_dim=cfg['embed_dim'], depths=cfg['depths'], num_heads=cfg['num_heads'], sep_encode=True,flow_sep=True,use_flow=True,drop_rate=0.0, attn_drop_rate=0.0,drop_path_rate=0.1, large_input=large_ogm)
+        self.encoder = SwinTransformerEncoder(
+                include_top=True, img_size=cfg['input_size'], window_size=cfg['window_size'],
+                embed_dim=cfg['embed_dim'], depths=cfg['depths'], num_heads=cfg['num_heads'],
+                sep_encode=True, flow_sep=True, use_flow=True, drop_rate=0.0, attn_drop_rate=0.0,
+                drop_path_rate=0.1, large_input=large_ogm)
         
         if sep_actors:
             traj_cfg = dict(traj_heads=4,att_heads=6,out_dim=384,no_attn=True)
@@ -788,14 +817,20 @@ class STrajNet(tf.keras.Model):
         
         resolution=[8,16,32]
         hw = resolution[4-len(cfg['depths'][:])]
-        self.trajnet_attn = TrajNetCrossAttention(traj_cfg,actor_only=actor_only,pic_size=(hw,hw),pic_dim=768//(2**(4-len(cfg['depths'][:])))
-        ,multi_modal=True,sep_actors=sep_actors)
+        self.trajnet_attn = TrajNetCrossAttention(traj_cfg, actor_only=actor_only,
+                                                  pic_size=(hw,hw),
+                                                  pic_dim=768//(2**(4-len(cfg['depths'][:]))),
+                                                  multi_modal=True,sep_actors=sep_actors)
         self.fg_msa = fg_msa
         self.fg = fg
         if fg_msa:
-            self.fg_msa_layer = FGMSA(q_size=(16,16), kv_size=(16,16),n_heads=8,n_head_channels=48,n_groups=8,out_dim=384,use_last_ref=False,fg=fg)
-        self.decoder = Pyramid3DDecoder(config=None,img_size=cfg['input_size'],use_pyramid=use_pyramid,timestep_split=True,
-        shallow_decode=(4-len(cfg['depths'][:])),flow_sep_decode=True,conv_cnn=False)
+            self.fg_msa_layer = FGMSA(q_size=(16,16), kv_size=(16,16), n_heads=8,
+                                      n_head_channels=48, n_groups=8, out_dim=384,
+                                      use_last_ref=False, fg=fg)
+        self.decoder = Pyramid3DDecoder(config=None, img_size=cfg['input_size'],
+                                        use_pyramid=use_pyramid, timestep_split=True,
+                                        shallow_decode=(4-len(cfg['depths'][:])),
+                                        flow_sep_decode=True, conv_cnn=False)
 
         dummy_ogm =tf.zeros((1,)+cfg['input_size']+(11,2,))
         dummy_map =tf.zeros((1,)+(256,256)+(3,))
@@ -806,11 +841,12 @@ class STrajNet(tf.keras.Model):
         dummy_flow =tf.zeros((1,)+cfg['input_size']+(2,))
         self.ref_res = None
 
-        self(dummy_ogm,dummy_map,obs=dummy_obs_actors,occ=dummy_occ_actors,mapt=dummy_ccl,flow=dummy_flow)
+        self(dummy_ogm, dummy_map, obs=dummy_obs_actors, occ=dummy_occ_actors, mapt=dummy_ccl,
+             flow=dummy_flow)
         self.summary()
     
-    def call(self,ogm,map_img,training=True,obs=None,occ=None,mapt=None,flow=None,dense_vec=None,dense_map=None):
-
+    def call(self, ogm, map_img, training=True, obs=None, occ=None, mapt=None, flow=None,
+             dense_vec=None, dense_map=None):
         #visual encoder:
         res_list = self.encoder(ogm,map_img,flow,training)
         q = res_list[-1]
@@ -844,14 +880,17 @@ def test_SwinT():
     tf.config.experimental.set_visible_devices(gpus, 'GPU')
     logical_gpus = tf.config.experimental.list_logical_devices('GPU')
     print(len(gpus), "Physical GPU(s),", len(logical_gpus), "Logical GPU(s)")
-    cfg = dict(input_size=(256, 256), window_size=8, embed_dim=96, depths=[2, 2, 2], num_heads=[3, 6, 12])
+    cfg = dict(input_size=(256, 256), window_size=8, embed_dim=96, depths=[2, 2, 2],
+               num_heads=[3, 6, 12])
     model = STrajNet(cfg=cfg,fg_msa=True,fg=True)
 
-def SwinTransformer(model_name='swin_tiny_224', num_classes=1000, include_top=True, pretrained=True, use_tpu=False, cfgs=CFGS):
+def SwinTransformer(model_name='swin_tiny_224', num_classes=1000, include_top=True,
+                    pretrained=True, use_tpu=False, cfgs=CFGS):
     cfg = cfgs[model_name]
     net = SwinTransformerModel(
-        model_name=model_name, include_top=include_top, num_classes=num_classes, img_size=cfg['input_size'], window_size=cfg[
-            'window_size'], embed_dim=cfg['embed_dim'], depths=cfg['depths'], num_heads=cfg['num_heads']
+        model_name=model_name, include_top=include_top, num_classes=num_classes,
+        img_size=cfg['input_size'], window_size=cfg['window_size'], embed_dim=cfg['embed_dim'],
+        depths=cfg['depths'], num_heads=cfg['num_heads']
     )
     net(tf.keras.Input(shape=(cfg['input_size'][0], cfg['input_size'][1], 3)))
     if pretrained is True:
