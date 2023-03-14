@@ -381,7 +381,7 @@ class Processor(object):
             writer = tf.io.TFRecordWriter(f'{self.save_dir}/train/'+f'{num}'+'new.tfrecords')
         return writer
         
-    def workflow(self,pred=False,val=False):
+    def workflow(self,pred=False,val=False,occl=True,flow=True):
         i = 0
         self.pbar = tqdm(total=self.dataset_length)
         num = self.filename.split('-')[1]
@@ -437,12 +437,14 @@ class Processor(object):
                 feature['gt_flow'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[gt_flow.tobytes()]))
                 feature['origin_flow'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[gt_origin_flow.tobytes()]))
 
-            del feature['occl_actors']
-            del feature['gt_occ_ogm']
-            del feature['gt_flow']
-            del feature['origin_flow']
-            del feature['vec_flow']
-            del feature['byc_flow']
+            if not occl:
+                del feature['occl_actors']
+                del feature['gt_occ_ogm']
+            if not flow:
+                del feature['gt_flow']
+                del feature['origin_flow']
+                del feature['vec_flow']
+                del feature['byc_flow']
 
             example = tf.train.Example(features=tf.train.Features(feature=feature))
             writer.write(example.SerializeToString())
@@ -456,39 +458,42 @@ class Processor(object):
         print('collect:',i)
 
 
-def process_training_data(filename):
+def process_training_data(filename, occl, flow):
     print('Working on',filename)
     processor = Processor(rasterisation_size=256, area_size=[70, 35, 50], max_occu=16,max_actors=48, radius=30,
     save_dir=args.save_dir, ids_dir=args.ids_dir)
     processor.load_data(filename)
-    processor.workflow()
+    processor.workflow(occl=occl, flow=flow)
     print(filename, 'done!')
 
-def process_val_data(filename):
+def process_val_data(filename, occl, flow):
     print('Working on', filename)
     processor = Processor(rasterisation_size=256, area_size=[70, 35, 50], max_occu=16,max_actors=48, radius=30,
     save_dir=args.save_dir, ids_dir=args.ids_dir)
     processor.load_data(filename)
-    processor.workflow(val=True)
+    processor.workflow(val=True, occl=occl, flow=flow)
     print(filename, 'done!')
 
-def process_test_data(filename):
+def process_test_data(filename, occl, flow):
     print('Working on', filename)
     processor = Processor(rasterisation_size=256, area_size=[70, 35, 50], max_occu=16,max_actors=48, radius=30,
     save_dir=args.save_dir, ids_dir=args.ids_dir)
     processor.load_data(filename)
-    processor.workflow(pred=True)
+    processor.workflow(pred=True, occl=occl, flow=flow)
     print(filename, 'done!')
 
 if __name__=="__main__":
     from multiprocessing import Pool
     from glob import glob
+    from itertools import repeat
 
     parser = argparse.ArgumentParser(description='Data-preprocessing')
     parser.add_argument('--ids_dir', type=str, help='ids.txt downloads from Waymos', default="./Waymo_Dataset/occupancy_flow_challenge/")
     parser.add_argument('--save_dir', type=str, help='saving directory',default="./Waymo_Dataset/preprocessed_data/")
     parser.add_argument('--file_dir', type=str, help='Dataset directory',default="./Waymo_Dataset/tf_example")
     parser.add_argument('--pool', type=int, help='num of pooling multi-processes in preprocessing',default=2)
+    parser.add_argument('--no-occl', action='store_true', help="Don't process occluded agent info")
+    parser.add_argument('--no-flow', action='store_true', help="Don't process flow info")
     args = parser.parse_args()
 
     NUM_POOLS = args.pool
@@ -497,16 +502,28 @@ if __name__=="__main__":
     print(f'Processing training data...{len(train_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_training_data, train_files[0:50])
+        p.starmap(process_training_data, zip(
+            train_files[0:1],
+            repeat(not args.no_occl),
+            repeat(not args.no_flow)
+        ))
     
     val_files = sorted(glob(f'{args.file_dir}/validation/*'))
     print(f'Processing validation data...{len(val_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_val_data, val_files[:])
+        p.starmap(process_val_data, zip(
+            val_files[0:1],
+            repeat(not args.no_occl),
+            repeat(not args.no_flow)
+        ))
     
     test_files = sorted(glob(f'{args.file_dir}/testing/*'))
     print(f'Processing validation data...{len(test_files)} found!')
     print('Starting processing pooling...')
     with Pool(NUM_POOLS) as p:
-        p.map(process_test_data, test_files[:])
+        p.starmap(process_test_data, zip(
+            test_files[0:1],
+            repeat(not args.no_occl),
+            repeat(not args.no_flow)
+        ))
