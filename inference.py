@@ -4,9 +4,11 @@ import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from swinT import SwinTransformerEncoder , SwinTransformerDecoder,CFGS
+#from swinT import SwinTransformerEncoder , SwinTransformerDecoder,CFGS
+from modules import SwinTransformerEncoder, CFGS
 
-from loss import OGMFlow_loss , OGMFlow_loss2
+#from loss import OGMFlow_loss , OGMFlow_loss2
+from loss import OGMFlow_loss , OGMFlow_loss
 
 from waymo_open_dataset.protos import occupancy_flow_metrics_pb2
 from waymo_open_dataset.protos import occupancy_flow_submission_pb2
@@ -62,24 +64,27 @@ NUM_PRED_CHANNELS = 4
 
 from time import time
 
-TEST =True
+# FIXME: these should be a single cl arg, or we could deduce from data path
+TEST = False
+val  = True
 
 feature = {
     'centerlines': tf.io.FixedLenFeature([], tf.string),
     'actors': tf.io.FixedLenFeature([], tf.string),
-    'occl_actors': tf.io.FixedLenFeature([], tf.string),
+    #'occl_actors': tf.io.FixedLenFeature([], tf.string),
     'ogm': tf.io.FixedLenFeature([], tf.string),
     'map_image': tf.io.FixedLenFeature([], tf.string),
     'scenario/id':tf.io.FixedLenFeature([], tf.string),
-    'vec_flow':tf.io.FixedLenFeature([], tf.string),
+    #'vec_flow':tf.io.FixedLenFeature([], tf.string),
     # 'byc_flow':tf.io.FixedLenFeature([], tf.string)
 }
 if not TEST:
-    feature.update({'gt_flow': tf.io.FixedLenFeature([], tf.string),
-                    'origin_flow': tf.io.FixedLenFeature([], tf.string),
-                    'gt_obs_ogm': tf.io.FixedLenFeature([], tf.string),
-                    'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
-                    })
+    feature.update({
+#            'gt_flow': tf.io.FixedLenFeature([], tf.string),
+#            'origin_flow': tf.io.FixedLenFeature([], tf.string),
+            'gt_obs_ogm': tf.io.FixedLenFeature([], tf.string),
+#            'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
+        })
 
 def _parse_image_function_test(example_proto):
   # Parse the input tf.Example proto using the dictionary above.
@@ -87,11 +92,11 @@ def _parse_image_function_test(example_proto):
   d =  tf.io.parse_single_example(example_proto, feature)
   new_dict['centerlines'] = tf.cast(tf.reshape(tf.io.decode_raw(d['centerlines'],tf.float64),[256,10,7]),tf.float32)
   new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(d['actors'],tf.float64),[48,11,8]),tf.float32)
-  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
+#  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
   new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(d['ogm'],tf.bool),tf.float32),[512,512,11,2])
 
   new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
-  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(d['vec_flow'],tf.float32),[512,512,2])
+#  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(d['vec_flow'],tf.float32),[512,512,2])
   new_dict['scenario/id'] = d['scenario/id']
   return new_dict
 
@@ -138,7 +143,8 @@ def _apply_sigmoid_to_occupancy_logits(
 
 print('load_model...')
 
-from swinT import STrajNet
+#from swinT import STrajNet
+from modules import STrajNet
 cfg=dict(input_size=(512,512), window_size=8, embed_dim=96, depths=[2,2,2], num_heads=[3,6,12])
 model = STrajNet(cfg,sep_actors=False)
 
@@ -146,9 +152,16 @@ def test_step(data):
     map_img = data['map_image']
     centerlines = data['centerlines']
     actors = data['actors']
-    occl_actors = data['occl_actors']
+#    occl_actors = data['occl_actors']
     ogm = data['ogm']
-    flow = data['vec_flow']
+#    flow = data['vec_flow']
+
+    batch_size = 1
+    occl_actors = tf.zeros((batch_size, 16, 11, 8))
+    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+    flow = tf.zeros((batch_size, 512, 512, 2))
 
     outputs = model(ogm,map_img,training=False,obs=actors,occ=occl_actors,mapt=centerlines,flow=flow)
     logits = _get_pred_waypoint_logits(outputs)
