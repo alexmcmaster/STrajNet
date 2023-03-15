@@ -1,7 +1,5 @@
-save/
 .*.swp
 .*.swo
 __pycache__/
 *.log
-viz/
-Waymo_Dataset
+runs/
