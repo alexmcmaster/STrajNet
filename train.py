@@ -54,6 +54,9 @@ parser.add_argument('--model_path', type=str, help='loaded weight path',default=
 parser.add_argument('--batch_size', type=int, help='batch_size',default=16)
 parser.add_argument('--epochs', type=int, help='training eps',default=15)
 parser.add_argument('--lr', type=float, help='initial learning rate',default=1e-4)
+parser.add_argument('--no-occl', action='store_true', help="Ignore occluded agent features")
+parser.add_argument('--no-flow', action='store_true', help="Ignore flow features")
+
 args = parser.parse_args()
 
 # Hyper parameters
@@ -74,46 +77,55 @@ strategy = tf.distribute.MirroredStrategy()
 feature = {
     'centerlines': tf.io.FixedLenFeature([], tf.string),
     'actors': tf.io.FixedLenFeature([], tf.string),
-    #'occl_actors': tf.io.FixedLenFeature([], tf.string),
+    'occl_actors': tf.io.FixedLenFeature([], tf.string),
     'ogm': tf.io.FixedLenFeature([], tf.string),
     'map_image': tf.io.FixedLenFeature([], tf.string),
     'gt_obs_ogm': tf.io.FixedLenFeature([], tf.string),
-    #'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
-    #'gt_flow': tf.io.FixedLenFeature([], tf.string),
-    #'origin_flow': tf.io.FixedLenFeature([], tf.string),
-    #'vec_flow':tf.io.FixedLenFeature([], tf.string),
+    'gt_occ_ogm': tf.io.FixedLenFeature([], tf.string),
+    'gt_flow': tf.io.FixedLenFeature([], tf.string),
+    'origin_flow': tf.io.FixedLenFeature([], tf.string),
+    'vec_flow':tf.io.FixedLenFeature([], tf.string),
     # 'byc_flow':tf.io.FixedLenFeature([], tf.string)
 }
+if args.no_occl:
+    del feature["occl_actors"]
+    del feature["gt_occ_ogm"]
+if args.no_flow:
+    del feature["gt_flow"]
+    del feature["origin_flow"]
+    del feature["vec_flow"]
 
 def _parse_image_function(example_proto):
-  # Parse the input tf.Example proto using the dictionary above.
-  new_dict = {}
-  d =  tf.io.parse_single_example(example_proto, feature)
-  new_dict['centerlines'] = tf.cast(tf.reshape(tf.io.decode_raw(
-      d['centerlines'],tf.float64),[256,10,7]),tf.float32)
-  new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
-      d['actors'],tf.float64),[48,11,8]),tf.float32)
-#  new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
-#      d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
+    # Parse the input tf.Example proto using the dictionary above.
+    new_dict = {}
+    d =  tf.io.parse_single_example(example_proto, feature)
+    new_dict['centerlines'] = tf.cast(tf.reshape(tf.io.decode_raw(
+        d['centerlines'],tf.float64),[256,10,7]),tf.float32)
+    new_dict['actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
+        d['actors'],tf.float64),[48,11,8]),tf.float32)
+    if not args.no_occl:
+        new_dict['occl_actors'] = tf.cast(tf.reshape(tf.io.decode_raw(
+            d['occl_actors'],tf.float64),[16,11,8]),tf.float32)
+        new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+            d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
-#  new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(
-#      d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
-#  new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(
-#      d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+    if not args.no_flow:
+        new_dict['gt_flow'] = tf.reshape(tf.io.decode_raw(
+            d['gt_flow'],tf.float32),[8,512,512,2])[:,128:128+256,128:128+256,:]
+        new_dict['origin_flow'] = tf.reshape(tf.io.decode_raw(
+            d['origin_flow'],tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+        new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(
+            d['vec_flow'],tf.float32),[512,512,2])
 
-  new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
-      d['ogm'],tf.bool),tf.float32),[512,512,11,2])
+    new_dict['ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+        d['ogm'],tf.bool),tf.float32),[512,512,11,2])
 
-  new_dict['gt_obs_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
-      d['gt_obs_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
-#  new_dict['gt_occ_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
-#      d['gt_occ_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
+    new_dict['gt_obs_ogm'] = tf.reshape(tf.cast(tf.io.decode_raw(
+        d['gt_obs_ogm'],tf.bool),tf.float32),[8,512,512,1])[:,128:128+256,128:128+256,:]
 
-  new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(
-      d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
-#  new_dict['vec_flow'] = tf.reshape(tf.io.decode_raw(
-#      d['vec_flow'],tf.float32),[512,512,2])
-  return new_dict
+    new_dict['map_image'] = tf.cast(tf.reshape(tf.io.decode_raw(
+        d['map_image'],tf.int8),[256,256,3]),tf.float32) / 256
+    return new_dict
 
 def _get_pred_waypoint_logits(
     model_outputs: tf.Tensor) -> occupancy_flow_grids.WaypointGrids:
@@ -209,7 +221,7 @@ use_pred = False
 use_focal_loss = False
 use_gt = True
 # FIXME: should find/fix root cause of instability instead
-clipnorm=1e3
+clipnorm=1e2
 
 with strategy.scope():
     model = STrajNet(cfg,actor_only=True,sep_actors=False)
@@ -227,27 +239,30 @@ with strategy.scope():
 
 @tf.function
 def train_step(data):
+    ogm = data['ogm']
+    batch_size = ogm.shape[0]
 
     map_img = data['map_image']
     centerlines = data['centerlines']
     actors = data['actors']
-    #occl_actors = data['occl_actors']
 
-    ogm = data['ogm']
+    if args.no_occl:
+        occl_actors = tf.zeros((batch_size, 16, 11, 8))
+        gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    else:
+        occl_actors = data['occl_actors']
+        gt_occ_ogm = data['gt_occ_ogm']
+
     gt_obs_ogm = data['gt_obs_ogm']
-    #gt_occ_ogm = data['gt_occ_ogm']
-    #gt_flow = data['gt_flow']
-    #origin_flow = data['origin_flow']
 
-    #flow = data['vec_flow']
-
-    batch_size = ogm.shape[0]
-
-    occl_actors = tf.zeros((batch_size, 16, 11, 8))
-    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
-    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
-    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
-    flow = tf.zeros((batch_size, 512, 512, 2))
+    if args.no_flow:
+        gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+        origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+        flow = tf.zeros((batch_size, 512, 512, 2))
+    else:
+        gt_flow = data['gt_flow']
+        origin_flow = data['origin_flow']
+        flow = data['vec_flow']
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -258,8 +273,7 @@ def train_step(data):
         logits = _get_pred_waypoint_logits(outputs)
         loss_dict = loss_fn(true_waypoints=true_waypoints,
                             pred_waypoint_logits=logits,curr_ogm=ogm[:,:,:,-1,0])
-        #loss_value = tf.math.add_n(loss_dict.values())
-        loss_value = loss_dict['observed_xe']
+        loss_value = tf.math.add_n(loss_dict.values())
 
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
@@ -271,17 +285,20 @@ def train_step(data):
     return outputs
 
 def train_metric_function(data,outputs):
-
     gt_obs_ogm = data['gt_obs_ogm']
-    #gt_occ_ogm = data['gt_occ_ogm']
-    #gt_flow = data['gt_flow']
-    #origin_flow = data['origin_flow']
-
     batch_size = gt_obs_ogm.shape[0]
 
-    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
-    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
-    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+    if args.no_occl:
+        gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    else:
+        gt_occ_ogm = data['gt_occ_ogm']
+
+    if args.no_flow:
+        gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+        origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+    else:
+        gt_flow = data['gt_flow']
+        origin_flow = data['origin_flow']
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,gt_occ=gt_occ_ogm,
                                  gt_flow=gt_flow,origin_flow=origin_flow)
@@ -298,27 +315,30 @@ def train_metric_function(data,outputs):
 
 # @tf.function
 def val_step(data):
+    ogm = data['ogm']
+    batch_size = ogm.shape[0]
 
     map_img = data['map_image']
     centerlines = data['centerlines']
     actors = data['actors']
-    #occl_actors = data['occl_actors']
 
-    ogm = data['ogm']
+    if args.no_occl:
+        occl_actors = tf.zeros((batch_size, 16, 11, 8))
+        gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
+    else:
+        occl_actors = data['occl_actors']
+        gt_occ_ogm = data['gt_occ_ogm']
+
     gt_obs_ogm = data['gt_obs_ogm']
-    #gt_occ_ogm = data['gt_occ_ogm']
-    #gt_flow = data['gt_flow']
-    #origin_flow = data['origin_flow']
 
-    #flow = data['vec_flow']
-
-    batch_size = ogm.shape[0]
-
-    occl_actors = tf.zeros((batch_size, 16, 11, 8))
-    gt_occ_ogm = tf.zeros((batch_size, 8, 256, 256, 1))
-    gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
-    origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
-    flow = tf.zeros((batch_size, 512, 512, 2))
+    if args.no_flow:
+        gt_flow = tf.zeros((batch_size, 8, 256, 256, 2))
+        origin_flow = tf.zeros((batch_size, 8, 256, 256, 1))
+        flow = tf.zeros((batch_size, 512, 512, 2))
+    else:
+        gt_flow = data['gt_flow']
+        origin_flow = data['origin_flow']
+        flow = data['vec_flow']
 
     true_waypoints = _warpped_gt(gt_ogm=gt_obs_ogm,
                                  gt_occ=gt_occ_ogm,
@@ -344,10 +364,10 @@ def val_step(data):
 
 def val_metric_function(true_waypoints,pred_waypoints):
     metrics = occupancy_flow_metrics.compute_occupancy_flow_metrics(
-    config=config,
-    true_waypoints=true_waypoints,
-    pred_waypoints=pred_waypoints,
-    no_warp=no_warp
+        config=config,
+        true_waypoints=true_waypoints,
+        pred_waypoints=pred_waypoints,
+        no_warp=no_warp
     )
     valid_metrics.update_state(metrics)
 
@@ -370,43 +390,58 @@ def model_training(train_dataset, valid_dataset, epochs,continue_ep=0):
         
         print("\nepoch {}/{}".format(epoch+1, epochs))
         
-        #progBar = tf.keras.utils.Progbar(training_samples,
-        #        stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss'],
-        #        unit_name='sample')
+        stateful_metrics = ['obs_loss', 'occ_loss', 'flow_loss', 'warp_loss']
+        if args.no_occl:
+            stateful_metrics.remove('occ_loss')
+        if args.no_flow:
+            stateful_metrics.remove('flow_loss')
+            stateful_metrics.remove('warp_loss')
         progBar = tf.keras.utils.Progbar(training_samples,
-                stateful_metrics=['obs_loss'],
+                stateful_metrics=stateful_metrics,
                 unit_name='sample')
-        #vprogBar = tf.keras.utils.Progbar(val_samples,
-        #        stateful_metrics=['obs_loss','occ_loss','flow_loss','warp_loss',
-        #                          'epe','obs_auc','occ_auc','flowogm_auc'],
-        #        unit_name='sample')
+        stateful_metrics = ['obs_loss', 'occ_loss', 'flow_loss', 'warp_loss', 'epe',
+                'obs_auc', 'occ_auc', 'flowogm_auc']
+        if args.no_occl:
+            stateful_metrics.remove('occ_loss')
+            stateful_metrics.remove('occ_auc')
+        if args.no_flow:
+            stateful_metrics.remove('flow_loss')
+            stateful_metrics.remove('warp_loss')
+            stateful_metrics.remove('epe')
+            stateful_metrics.remove('flowogm_auc')
         vprogBar = tf.keras.utils.Progbar(val_samples,
-                stateful_metrics=['obs_loss','epe','obs_auc'],
+                stateful_metrics=stateful_metrics,
                 unit_name='sample')
 
         # Iterate over the batches of the training dataset.
         for step, batch in enumerate(train_dataset):
             training_samples = (step+1) * BATCH_SIZE
             outputs = strategy.run(train_step,args=(batch,))
-            progBar.update((step+1) * BATCH_SIZE, values=[
+            values=[
                 ('obs_loss', train_loss.result()/ogm_weight),
-                #('occ_loss', train_loss_occ.result()/occ_weight),
-                #('flow_loss', train_loss_flow.result()/flow_weight),
-                #('warp_loss', train_loss_warp.result()/flow_origin_weight)
-            ])
+            ]
+            if not args.no_occl:
+                values.append(('occ_loss', train_loss_occ.result()/occ_weight))
+            if not args.no_flow:
+                values.append(('flow_loss', train_loss_flow.result()/flow_weight))
+                values.append(('warp_loss', train_loss_warp.result()/flow_origin_weight))
+            progBar.update((step+1) * BATCH_SIZE, values=values)
 
         # Iterate over the batches of the validation dataset. 
         if valid_dataset is not None:
             for step, batch in enumerate(valid_dataset):
                 val_samples = (step+1) * BATCH_SIZE
                 strategy.run(val_step,args=(batch,))
-                vprogBar.update((step+1) * BATCH_SIZE, values=[
+                values=[
                     ('obs_loss', valid_loss.result()/ogm_weight),
-                    #('occ_loss',valid_loss_occ.result()/occ_weight),
-                    #('flow_loss', valid_loss_flow.result()/flow_weight),
-                    #('warp_loss', valid_loss_warp.result()/flow_origin_weight),
-                    #('flowogm_auc',valid_metrics.flow_ogm_auc.result())
-                ])
+                ]
+                if not args.no_occl:
+                    values.append(('occ_loss', valid_loss_occ.result()/occ_weight))
+                if not args.no_flow:
+                    values.append(('flow_loss', valid_loss_flow.result()/flow_weight))
+                    values.append(('warp_loss', valid_loss_warp.result()/flow_origin_weight))
+                    values.append(('flowogm_auc',valid_metrics.flow_ogm_auc.result()))
+                vprogBar.update((step+1) * BATCH_SIZE, values=values)
 
             # Display metrics at the end of testing.
             val_res_dict = valid_metrics.get_result()
