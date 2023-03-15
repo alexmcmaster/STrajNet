@@ -2,6 +2,7 @@
 
 import sys
 import zlib
+import argparse
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
 
@@ -13,6 +14,15 @@ import tensorflow as tf
 from waymo_open_dataset.protos import occupancy_flow_submission_pb2
 
 out_dir = "viz"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--gt", required=True, help="Ground truth path")
+parser.add_argument("--pred", required=True, help="Predictions path")
+parser.add_argument("--out", default="viz", help="Output directory")
+parser.add_argument("--map", action="store_true", help="Include map lines")
+parser.add_argument("--test", action="store_true", help="Plot first image and exit")
+args = parser.parse_args()
+
 
 def _parse_image_function(example_proto):
     # FIXME: ideally we would import this from train.py, but since that file
@@ -51,19 +61,18 @@ def _make_alpha(im, thresh):
     ret[idx] = 0
     return ret.reshape(im.shape[:2])
 
-print(f"Reading {sys.argv[1]}")
-gt_dataset = tf.data.TFRecordDataset(sys.argv[1], compression_type='')
+print(f"Reading {args.gt}")
+gt_dataset = tf.data.TFRecordDataset(args.gt, compression_type='')
 gt_dataset = gt_dataset.map(_parse_image_function)
 gt_dataset = list(gt_dataset.batch(1))
 
-print(f"Reading {sys.argv[2]}")
-with open(sys.argv[2], "rb") as f:
+print(f"Reading {args.pred}")
+with open(args.pred, "rb") as f:
     raw = f.read()
 
 sub = occupancy_flow_submission_pb2.ChallengeSubmission()
 sub.ParseFromString(raw)
 
-SHOW_MAP = True
 ALPHA_CONTRAST = 10
 
 for i, scenario in enumerate(sub.scenario_predictions):
@@ -90,7 +99,7 @@ for i, scenario in enumerate(sub.scenario_predictions):
         map_image = np.clip(map_image, 0, 1)
         map_image = np.mean(map_image ** 2, axis=2)
         map_image[map_image > 0] = 0.5
-        if SHOW_MAP:
+        if args.map:
             np.save("q", map_image)
             pred_alpha = (obs_occu ** (1/ALPHA_CONTRAST)).reshape(obs_occu.shape[:2])
             axs[0, j].imshow(map_image, cmap="gray", vmin=0, vmax=1)
@@ -103,6 +112,7 @@ for i, scenario in enumerate(sub.scenario_predictions):
             axs[1, j].imshow(gt_occu, vmin=0, vmax=1)
 
     plt.tight_layout()
-    #plt.show()
-    #sys.exit(0)
-    plt.savefig(f"{out_dir}/{scenario.scenario_id}.png")
+    if args.test:
+        plt.show()
+        sys.exit(0)
+    plt.savefig(f"{args.out}/{scenario.scenario_id}.png")
